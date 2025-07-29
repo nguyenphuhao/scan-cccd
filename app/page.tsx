@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle, AlertCircle, Settings } from 'lucide-react';
+import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle, AlertCircle, Settings, Crop } from 'lucide-react';
 import CameraCapture from '@/components/CameraCapture';
 import CCCDForm from '@/components/CCCDForm';
 import OCRSelector from '@/components/OCRSelector';
 import Footer from '@/components/Footer';
+import AutoCropOverlay from '@/components/AutoCropOverlay';
 import { scanCCCD } from '@/utils/ocr';
 import { scanCCCDWithGoogleVision } from '@/utils/google-vision-ocr';
 import { scanCCCDWithVietOCR } from '@/utils/vietocr';
@@ -14,12 +15,14 @@ import { OCREngine } from '@/types/ocr';
 
 export default function Home() {
   const [showCamera, setShowCamera] = useState(false);
+  const [showAutoCrop, setShowAutoCrop] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedOCREngine, setSelectedOCREngine] = useState<OCREngine>('tesseract');
   const [showOCRSettings, setShowOCRSettings] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [debugText, setDebugText] = useState<string>('');
   const [formData, setFormData] = useState<CCCDData>({
     cardNumber: '',
@@ -40,7 +43,8 @@ export default function Home() {
     const previewUrl = URL.createObjectURL(file);
     setCapturedImage(previewUrl);
     
-    await processImage(file);
+    // Show auto-crop overlay
+    setShowAutoCrop(true);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,8 +54,26 @@ export default function Home() {
       const previewUrl = URL.createObjectURL(file);
       setCapturedImage(previewUrl);
       
-      await processImage(file);
+      // Show auto-crop overlay
+      setShowAutoCrop(true);
     }
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob, boundingBox: any) => {
+    setShowAutoCrop(false);
+    
+    // Create cropped image URL
+    const croppedUrl = URL.createObjectURL(croppedBlob);
+    setCroppedImage(croppedUrl);
+    
+    // Process the cropped image
+    const croppedFile = new File([croppedBlob], 'cccd-cropped.jpg', { type: 'image/jpeg' });
+    await processImage(croppedFile);
+  };
+
+  const handleCropCancel = () => {
+    setShowAutoCrop(false);
+    setCapturedImage(null);
   };
 
   const processImage = async (file: File) => {
@@ -140,6 +162,7 @@ export default function Home() {
     setScanResult(null);
     setIsEditing(false);
     setCapturedImage(null);
+    setCroppedImage(null);
     setDebugText('');
   };
 
@@ -232,21 +255,46 @@ export default function Home() {
                 <li>• Hold the card steady and flat</li>
                 <li>• Make sure all text is clearly visible</li>
                 <li>• Works with both front and back sides</li>
+                <li>• Auto-crop will detect and focus on the CCCD card</li>
               </ul>
             </div>
           </div>
         )}
 
-        {/* Captured Image Preview */}
-        {capturedImage && (
+        {/* Original Image Preview */}
+        {capturedImage && !croppedImage && (
           <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">
-              Captured Image
+            <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+              <Crop size={20} className="mr-2" />
+              Original Image
             </h3>
             <div className="relative">
               <img 
                 src={capturedImage} 
-                alt="Captured CCCD" 
+                alt="Original CCCD" 
+                className="w-full h-48 object-cover rounded-lg border"
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
+                <div className="text-white text-center">
+                  <Crop size={32} className="mx-auto mb-2" />
+                  <p>Processing auto-crop...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cropped Image Preview */}
+        {croppedImage && (
+          <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+              <CheckCircle size={20} className="mr-2 text-green-600" />
+              Cropped CCCD Card
+            </h3>
+            <div className="relative">
+              <img 
+                src={croppedImage} 
+                alt="Cropped CCCD" 
                 className="w-full h-48 object-cover rounded-lg border"
               />
               {isScanning && (
@@ -275,7 +323,7 @@ export default function Home() {
         )}
 
         {/* Loading State */}
-        {isScanning && !capturedImage && (
+        {isScanning && !croppedImage && (
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
             <div className="flex items-center justify-center space-x-3">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
@@ -350,6 +398,15 @@ export default function Home() {
           <CameraCapture
             onImageCapture={handleImageCapture}
             onClose={() => setShowCamera(false)}
+          />
+        )}
+
+        {/* Auto-Crop Modal */}
+        {showAutoCrop && capturedImage && (
+          <AutoCropOverlay
+            imageSrc={capturedImage}
+            onCropComplete={handleCropComplete}
+            onCancel={handleCropCancel}
           />
         )}
       </div>
