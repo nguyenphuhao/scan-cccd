@@ -1,25 +1,21 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle, AlertCircle, QrCode, Wifi } from 'lucide-react';
-import CameraCapture from '@/components/CameraCapture';
+import { Upload, Edit, Save, RotateCcw, CheckCircle, AlertCircle, QrCode, ArrowLeft } from 'lucide-react';
 import CCCDForm from '@/components/CCCDForm';
 import Footer from '@/components/Footer';
-import NFCScanner from '@/components/NFCScanner';
-import { enhancedQRScan } from '@/utils/qr-scanner';
-import { nfcReader } from '@/utils/nfc-reader';
+import AISelector, { AIEngine } from '@/components/AISelector';
+import { extractCCCDWithOpenAI } from '@/utils/openai-cccd-extractor';
+import { extractCCCDWithGemini } from '@/utils/gemini-cccd-extractor';
 import { CCCDData, ScanResult } from '@/types/cccd';
 
 export default function Home() {
-  const [showCamera, setShowCamera] = useState(false);
-  const [showNFCScanner, setShowNFCScanner] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [scanMethod, setScanMethod] = useState<'nfc' | 'qr'>('nfc');
   const [qrDebugData, setQrDebugData] = useState<string>('');
-  const [isNFCSupported, setIsNFCSupported] = useState(false);
+  const [selectedAIEngine, setSelectedAIEngine] = useState<AIEngine>('gemini');
   const [formData, setFormData] = useState<CCCDData>({
     cardNumber: '',
     fullName: '',
@@ -32,47 +28,11 @@ export default function Home() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    // Check NFC support on component mount (client-side only)
-    if (typeof window !== 'undefined') {
-      setIsNFCSupported(nfcReader.isNFCSupported());
-    }
-  }, []);
-
-  const handleNFCScan = () => {
-    setScanMethod('nfc');
-    setShowNFCScanner(true);
-  };
-
-  const handleNFCDetected = (data: CCCDData) => {
-    setShowNFCScanner(false);
-    setScanResult({
-      success: true,
-      data: data,
-      confidence: 0.99,
-    });
-    setFormData(data);
-    console.log('NFC scan successful:', data);
-  };
-
-  const handleNFCFailed = (error: string) => {
-    setShowNFCScanner(false);
-    setScanResult({
-      success: false,
-      error: error,
-    });
-    console.log('NFC scan failed:', error);
-  };
-
-  const handleImageCapture = async (file: File) => {
-    setShowCamera(false);
-    
-    // Create preview URL
-    const previewUrl = URL.createObjectURL(file);
-    setCapturedImage(previewUrl);
-    
-    // Start QR scanning
-    await processImageWithQR(file);
+  const backToUpload = () => {
+    setScanResult(null);
+    setCapturedImage(null);
+    setQrDebugData('');
+    setIsEditing(false);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,54 +42,56 @@ export default function Home() {
       const previewUrl = URL.createObjectURL(file);
       setCapturedImage(previewUrl);
       
-      // Start QR scanning
-      await processImageWithQR(file);
+      // Start AI extraction
+      await processImageWithAI(file);
     }
   };
 
-  const processImageWithQR = async (file: File) => {
+  const processImageWithAI = async (file: File) => {
     setIsScanning(true);
-    setScanMethod('qr');
     setQrDebugData('');
     
     try {
-      console.log('Starting QR scan...');
+      console.log('Starting AI extraction...');
       
-      // Override console.log to capture QR scanning logs
+      // Override console.log to capture AI processing logs
       const originalLog = console.log;
-      const qrCapturedLogs: string[] = [];
+      const aiCapturedLogs: string[] = [];
       console.log = (...args) => {
-        qrCapturedLogs.push(args.join(' '));
+        aiCapturedLogs.push(args.join(' '));
         originalLog.apply(console, args);
       };
       
-      // Try QR code scanning
-      const qrResult = await enhancedQRScan(file);
+      // Try AI extraction with selected engine
+      console.log('Using AI engine:', selectedAIEngine);
+      const aiResult = selectedAIEngine === 'openai' 
+        ? await extractCCCDWithOpenAI(file)
+        : await extractCCCDWithGemini(file);
       
       // Restore console.log
       console.log = originalLog;
       
-      // Extract QR debug information
-      const qrDebugInfo = qrCapturedLogs.join('\n');
-      setQrDebugData(qrDebugInfo);
+      // Extract AI debug information
+      const aiDebugInfo = aiCapturedLogs.join('\n');
+      setQrDebugData(aiDebugInfo);
       
-      if (qrResult.success && qrResult.data) {
-        console.log('QR code scan successful:', qrResult.data);
-        setScanResult(qrResult);
-        setFormData(qrResult.data);
+      if (aiResult.success && aiResult.data) {
+        console.log('AI extraction successful:', aiResult.data);
+        setScanResult(aiResult);
+        setFormData(aiResult.data);
       } else {
-        console.log('No QR code found');
+        console.log('AI extraction failed');
         setScanResult({
           success: false,
-          error: 'No QR code detected on the CCCD card. Please ensure the QR code is clearly visible and try again.',
+          error: 'Không thể trích xuất thông tin CCCD từ ảnh. Vui lòng đảm bảo ảnh rõ nét và chứa thẻ CCCD Việt Nam.',
         });
       }
     } catch (error) {
-      console.error('QR scanning failed:', error);
-      setQrDebugData(`QR Scan Error: ${error}`);
+      console.error('AI extraction failed:', error);
+      setQrDebugData(`AI Extraction Error: ${error}`);
       setScanResult({
         success: false,
-        error: 'QR code scanning failed. Please try again with a clearer image.',
+        error: 'Trích xuất AI thất bại. Vui lòng thử lại với ảnh rõ nét hơn.',
       });
     } finally {
       setIsScanning(false);
@@ -163,7 +125,26 @@ export default function Home() {
     setIsEditing(false);
     setCapturedImage(null);
     setQrDebugData('');
-    setScanMethod('nfc');
+  };
+
+  const loadSampleData = () => {
+    const sampleData = {
+      cardNumber: '',
+      fullName: '',
+      dateOfBirth: '',
+      sex: '',
+      nationality: '',
+      placeOfOrigin: '',
+      placeOfResidence: '',
+      dateOfExpiry: '',
+    };
+    setFormData(sampleData);
+    setScanResult({
+      success: true,
+      data: sampleData,
+      confidence: 0.95,
+    });
+    setIsEditing(false);
   };
 
   return (
@@ -174,12 +155,11 @@ export default function Home() {
           <div className="flex items-center justify-center">
             <div className="text-center">
               <h1 className="text-xl font-bold text-gray-900 flex items-center justify-center">
-                <Wifi size={24} className="mr-2 text-blue-600" />
                 <QrCode size={24} className="mr-2 text-green-600" />
-                CCCD Scanner
+                Quét CCCD
               </h1>
               <p className="text-sm text-gray-600">
-                NFC & QR Code Scanner for Vietnamese ID Cards
+                Ứng dụng quét CCCD bằng AI
               </p>
             </div>
           </div>
@@ -187,49 +167,32 @@ export default function Home() {
       </header>
 
       <div className="flex-1 max-w-md mx-auto p-4 w-full">
-        {/* Scan Options */}
+        {/* AI Engine Selection */}
+        {!scanResult?.success && (
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Chọn công cụ AI</h2>
+            <AISelector 
+              selectedEngine={selectedAIEngine}
+              onEngineChange={setSelectedAIEngine}
+            />
+          </div>
+        )}
+
+        {/* Upload Options */}
         {!scanResult?.success && (
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">
-              Choose Scanning Method
+              Tải lên ảnh CCCD
             </h2>
             
             <div className="space-y-4">
-              {/* NFC Button */}
-              {isNFCSupported ? (
-                <button
-                  onClick={handleNFCScan}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2"
-                >
-                  <Wifi size={20} />
-                  <span>Scan with NFC</span>
-                  <span className="bg-blue-500 text-xs px-2 py-1 rounded">RECOMMENDED</span>
-                </button>
-              ) : (
-                <div className="w-full bg-gray-300 text-gray-500 font-medium py-4 px-6 rounded-lg flex items-center justify-center space-x-2">
-                  <Wifi size={20} />
-                  <span>NFC Not Supported</span>
-                </div>
-              )}
-
-              {/* QR Code Options */}
-              <div className="space-y-2">
-                <button
-                  onClick={() => setShowCamera(true)}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2"
-                >
-                  <Camera size={20} />
-                  <span>Take Photo (QR)</span>
-                </button>
-
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2"
-                >
-                  <Upload size={20} />
-                  <span>Upload Image (QR)</span>
-                </button>
-              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-4 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2"
+              >
+                <Upload size={20} />
+                <span>Tải lên ảnh (AI)</span>
+              </button>
 
               <input
                 ref={fileInputRef}
@@ -241,32 +204,18 @@ export default function Home() {
             </div>
 
             {/* Instructions */}
-            <div className="mt-6 space-y-4">
-              {isNFCSupported && (
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-medium text-blue-900 mb-2 flex items-center">
-                    <Wifi size={16} className="mr-2" />
-                    NFC Scanning (Recommended):
-                  </h3>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• ✨ Instant wireless scanning</li>
-                    <li>• 🎯 99.9% accuracy</li>
-                    <li>• 📱 Just tap your card to the phone</li>
-                    <li>• 🔒 Secure and fast</li>
-                  </ul>
-                </div>
-              )}
-              
+            <div className="mt-6">
               <div className="p-4 bg-green-50 rounded-lg">
                 <h3 className="font-medium text-green-900 mb-2 flex items-center">
                   <QrCode size={16} className="mr-2" />
-                  QR Code Scanning:
+                  Quét bằng AI:
                 </h3>
                 <ul className="text-sm text-green-800 space-y-1">
-                  <li>• 📸 Take photo or upload image</li>
-                  <li>• 🎯 99% accuracy with QR codes</li>
-                  <li>• 💡 Ensure good lighting</li>
-                  <li>• 📋 Works with newer CCCD cards</li>
+                  <li>• 📸 Tải lên ảnh CCCD rõ nét</li>
+                  <li>• 🤖 Công nghệ AI nhận dạng văn bản tiên tiến</li>
+                  <li>• 🎯 Độ chính xác cao cho tất cả thẻ CCCD</li>
+                  <li>• 💡 Hoạt động trong nhiều điều kiện ánh sáng</li>
+                  <li>• 📋 Hỗ trợ cả CCCD cũ và mới</li>
                 </ul>
               </div>
             </div>
@@ -278,7 +227,7 @@ export default function Home() {
           <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
               <QrCode size={20} className="mr-2 text-blue-600" />
-              QR Code Scanning
+              Xử lý bằng AI
             </h3>
             <div className="relative">
               <img 
@@ -293,9 +242,9 @@ export default function Home() {
                       <QrCode size={48} className="animate-pulse" />
                       <div className="absolute inset-0 border-2 border-white border-dashed animate-ping"></div>
                     </div>
-                    <p className="font-medium">Scanning QR Code...</p>
+                    <p className="font-medium">Đang xử lý bằng AI...</p>
                     <p className="text-sm text-gray-300">
-                      Looking for CCCD QR code data
+                      Đang trích xuất thông tin CCCD
                     </p>
                   </div>
                 </div>
@@ -310,24 +259,24 @@ export default function Home() {
             <div className="flex items-center justify-center space-x-2">
               <QrCode size={16} className="text-green-600" />
               <CheckCircle size={16} className="text-green-600" />
-              <span className="text-sm font-medium text-green-600">QR Code Successfully Scanned</span>
-              <span className="text-xs text-green-500">(99% accuracy)</span>
+              <span className="text-sm font-medium text-green-600">Trích xuất AI thành công</span>
+              <span className="text-xs text-green-500">(độ chính xác 95%)</span>
             </div>
           </div>
         )}
 
-        {/* QR Code Debug Information */}
+        {/* AI Processing Debug Information */}
         {qrDebugData && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h3 className="font-medium text-blue-900 mb-2 flex items-center">
               <QrCode size={16} className="mr-2" />
-              Debug: QR Code Scanning Data
+              Debug: Dữ liệu xử lý AI
             </h3>
             <div className="text-xs text-blue-800 bg-blue-100 p-3 rounded max-h-40 overflow-y-auto font-mono">
-              {qrDebugData || 'No QR code data found'}
+              {qrDebugData || 'Không tìm thấy dữ liệu xử lý AI'}
             </div>
             <div className="mt-2 text-xs text-blue-700">
-              <strong>Note:</strong> This shows the raw QR code content and parsing process
+              <strong>Lưu ý:</strong> Hiển thị nhật ký xử lý AI và nội dung đã trích xuất
             </div>
           </div>
         )}
@@ -337,7 +286,7 @@ export default function Home() {
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
             <div className="flex items-center justify-center space-x-3">
               <QrCode size={24} className="animate-pulse text-blue-600" />
-              <span className="text-gray-700">Scanning QR Code...</span>
+              <span className="text-gray-700">Đang xử lý bằng AI...</span>
             </div>
           </div>
         )}
@@ -347,25 +296,26 @@ export default function Home() {
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <div className="flex items-center space-x-2 mb-2">
               <AlertCircle size={16} className="text-red-600" />
-              <p className="text-red-800 text-sm font-medium">QR Code Not Found</p>
+              <p className="text-red-800 text-sm font-medium">Trích xuất AI thất bại</p>
             </div>
             <p className="text-red-800 text-sm">{scanResult.error}</p>
             <div className="mt-3 p-3 bg-red-100 rounded">
               <p className="text-xs text-red-700">
-                <strong>Tips:</strong>
+                <strong>Mẹo:</strong>
               </p>
               <ul className="text-xs text-red-700 mt-1 space-y-1">
-                <li>• Ensure the QR code is clearly visible</li>
-                <li>• Check if your CCCD has a QR code (newer cards only)</li>
-                <li>• Try better lighting conditions</li>
-                <li>• Make sure the QR code is not damaged or scratched</li>
+                <li>• Đảm bảo ảnh rõ nét và đủ sáng</li>
+                <li>• Chắc chắn tất cả văn bản trên CCCD đều có thể nhìn thấy</li>
+                <li>• Thử tải lên ảnh chất lượng cao hơn</li>
+                <li>• Kiểm tra ảnh có chứa CCCD Việt Nam không</li>
               </ul>
             </div>
             <button
-              onClick={resetForm}
-              className="mt-3 text-red-600 text-sm underline"
+              onClick={backToUpload}
+              className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm flex items-center space-x-2"
             >
-              Try again
+              <ArrowLeft size={16} />
+              <span>Quay lại tải lên</span>
             </button>
           </div>
         )}
@@ -379,14 +329,14 @@ export default function Home() {
                 <QrCode size={20} className="text-green-600" />
                 <CheckCircle size={20} className="text-green-600" />
                 <h2 className="text-lg font-semibold text-gray-800">
-                  CCCD Information
+                  Thông tin CCCD
                 </h2>
               </div>
               <div className="flex space-x-2">
                 <button
                   onClick={() => setIsEditing(!isEditing)}
                   className="p-2 text-gray-600 hover:text-gray-800"
-                  title="Edit Information"
+                  title="Chỉnh sửa thông tin"
                 >
                   <Edit size={18} />
                 </button>
@@ -394,15 +344,22 @@ export default function Home() {
                   <button
                     onClick={handleSave}
                     className="p-2 text-green-600 hover:text-green-800"
-                    title="Save Changes"
+                    title="Lưu thay đổi"
                   >
                     <Save size={18} />
                   </button>
                 )}
                 <button
+                  onClick={backToUpload}
+                  className="p-2 text-blue-600 hover:text-blue-800"
+                  title="Tải lên ảnh mới"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <button
                   onClick={resetForm}
                   className="p-2 text-gray-600 hover:text-gray-800"
-                  title="Scan New Card"
+                  title="Đặt lại form"
                 >
                   <RotateCcw size={18} />
                 </button>
@@ -416,23 +373,6 @@ export default function Home() {
               isEditing={isEditing}
             />
           </div>
-        )}
-
-        {/* NFC Scanner Modal */}
-        {showNFCScanner && (
-          <NFCScanner
-            onNFCDetected={handleNFCDetected}
-            onNFCFailed={handleNFCFailed}
-            onCancel={() => setShowNFCScanner(false)}
-          />
-        )}
-
-        {/* Camera Modal */}
-        {showCamera && (
-          <CameraCapture
-            onImageCapture={handleImageCapture}
-            onClose={() => setShowCamera(false)}
-          />
         )}
       </div>
 

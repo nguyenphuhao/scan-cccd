@@ -27,7 +27,19 @@ export async function scanQRCode(imageFile: File): Promise<ScanResult> {
         ctx.drawImage(img, 0, 0);
         
         // Get image data for QR scanning
+        console.log('Getting image data from canvas:', canvas.width, 'x', canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        if (!imageData || !imageData.data) {
+          console.error('Failed to get ImageData from canvas');
+          resolve({
+            success: false,
+            error: 'Failed to process image data. Please try a different image.',
+          });
+          return;
+        }
+        
+        console.log('ImageData obtained successfully:', imageData.width, 'x', imageData.height, 'data length:', imageData.data.length);
         
         // Try multiple scanning approaches
         const qrResult = tryMultipleQRScans(imageData, canvas, ctx);
@@ -68,56 +80,101 @@ export async function scanQRCode(imageFile: File): Promise<ScanResult> {
 }
 
 function tryMultipleQRScans(imageData: ImageData, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): string | null {
+  // Validate imageData first
+  if (!imageData) {
+    console.error('ImageData is null or undefined');
+    return null;
+  }
+  
+  if (!imageData.data) {
+    console.error('ImageData.data is null or undefined');
+    return null;
+  }
+  
+  if (!imageData.width || !imageData.height) {
+    console.error('ImageData dimensions are invalid:', imageData.width, imageData.height);
+    return null;
+  }
+  
   const width = imageData.width;
   const height = imageData.height;
   
   console.log('Trying multiple QR scan approaches...');
+  console.log('ImageData info:', { width, height, dataLength: imageData.data.length });
   
   // Approach 1: Original image
-  let result = jsQR(imageData.data, width, height, {
-    inversionAttempts: "dontInvert",
-  });
-  if (result) {
-    console.log('QR found with original image');
-    return result.data;
+  try {
+    let result = jsQR(imageData.data, width, height, {
+      inversionAttempts: "dontInvert",
+    });
+    if (result) {
+      console.log('QR found with original image');
+      return result.data;
+    }
+  } catch (error) {
+    console.error('Error in approach 1:', error);
   }
 
   // Approach 2: Inverted colors
-  result = jsQR(imageData.data, width, height, {
-    inversionAttempts: "onlyInvert",
-  });
-  if (result) {
-    console.log('QR found with inverted colors');
-    return result.data;
+  try {
+    let result = jsQR(imageData.data, width, height, {
+      inversionAttempts: "onlyInvert",
+    });
+    if (result) {
+      console.log('QR found with inverted colors');
+      return result.data;
+    }
+  } catch (error) {
+    console.error('Error in approach 2:', error);
   }
 
   // Approach 3: Try both inversions
-  result = jsQR(imageData.data, width, height, {
-    inversionAttempts: "attemptBoth",
-  });
-  if (result) {
-    console.log('QR found with both inversions');
-    return result.data;
+  try {
+    let result = jsQR(imageData.data, width, height, {
+      inversionAttempts: "attemptBoth",
+    });
+    if (result) {
+      console.log('QR found with both inversions');
+      return result.data;
+    }
+  } catch (error) {
+    console.error('Error in approach 3:', error);
   }
 
   // Approach 4: Enhanced contrast
-  const contrastData = enhanceContrast(imageData);
-  result = jsQR(contrastData.data, contrastData.width, contrastData.height, {
-    inversionAttempts: "attemptBoth",
-  });
-  if (result) {
-    console.log('QR found with enhanced contrast');
-    return result.data;
+  try {
+    const contrastData = enhanceContrast(imageData);
+    if (!contrastData || !contrastData.data) {
+      console.error('Failed to enhance contrast');
+      return null;
+    }
+    let result = jsQR(contrastData.data, contrastData.width, contrastData.height, {
+      inversionAttempts: "attemptBoth",
+    });
+    if (result) {
+      console.log('QR found with enhanced contrast');
+      return result.data;
+    }
+  } catch (error) {
+    console.error('Error in approach 4:', error);
   }
 
   // Approach 5: Grayscale conversion
-  const grayscaleData = convertToGrayscale(imageData);
-  result = jsQR(grayscaleData.data, grayscaleData.width, grayscaleData.height, {
-    inversionAttempts: "attemptBoth",
-  });
-  if (result) {
-    console.log('QR found with grayscale');
-    return result.data;
+  try {
+    const grayscaleData = convertToGrayscale(imageData);
+    if (!grayscaleData || !grayscaleData.data) {
+      console.error('Failed to convert to grayscale');
+      return null;
+    }
+    let result = jsQR(grayscaleData.data, grayscaleData.width, grayscaleData.height, {
+      inversionAttempts: "attemptBoth",
+    });
+    if (result) {
+      console.log('QR found with grayscale');
+      return result.data;
+    }
+  } catch (error) {
+    console.error('Error in approach 5:', error);
   }
 
   // Approach 6: Try different regions of the image
@@ -132,7 +189,7 @@ function tryMultipleQRScans(imageData: ImageData, canvas: HTMLCanvasElement, ctx
     const region = regions[i];
     try {
       const regionData = ctx.getImageData(region.x, region.y, region.w, region.h);
-      result = jsQR(regionData.data, regionData.width, regionData.height, {
+      let result = jsQR(regionData.data, regionData.width, regionData.height, {
         inversionAttempts: "attemptBoth",
       });
       if (result) {
@@ -156,7 +213,7 @@ function tryMultipleQRScans(imageData: ImageData, canvas: HTMLCanvasElement, ctx
     scaledCtx.drawImage(canvas, 0, 0, width * scale, height * scale);
     
     const scaledData = scaledCtx.getImageData(0, 0, scaledCanvas.width, scaledCanvas.height);
-    result = jsQR(scaledData.data, scaledData.width, scaledData.height, {
+    let result = jsQR(scaledData.data, scaledData.width, scaledData.height, {
       inversionAttempts: "attemptBoth",
     });
     if (result) {
@@ -170,7 +227,11 @@ function tryMultipleQRScans(imageData: ImageData, canvas: HTMLCanvasElement, ctx
   // Approach 8: Binary threshold
   try {
     const binaryData = applyBinaryThreshold(imageData);
-    result = jsQR(binaryData.data, binaryData.width, binaryData.height, {
+    if (!binaryData || !binaryData.data) {
+      console.error('Failed to apply binary threshold');
+      return null;
+    }
+    let result = jsQR(binaryData.data, binaryData.width, binaryData.height, {
       inversionAttempts: "attemptBoth",
     });
     if (result) {
@@ -246,7 +307,19 @@ export async function enhancedQRScan(imageFile: File): Promise<ScanResult> {
         console.log(`Image dimensions: ${img.width}x${img.height}`);
         
         // Get image data
+        console.log('Getting image data from enhanced scan canvas:', canvas.width, 'x', canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        if (!imageData || !imageData.data) {
+          console.error('Failed to get ImageData from enhanced scan canvas');
+          resolve({
+            success: false,
+            error: 'Failed to process image data for enhanced scanning.',
+          });
+          return;
+        }
+        
+        console.log('Enhanced scan ImageData obtained:', imageData.width, 'x', imageData.height, 'data length:', imageData.data.length);
         
         // Try multiple scanning approaches with detailed logging
         const qrText = tryMultipleQRScans(imageData, canvas, ctx);

@@ -17,50 +17,50 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
   return (
     <div className="space-y-4 p-4">
       <h2 className="text-xl font-semibold text-gray-800 mb-6">
-        CCCD Information
+        Thông tin CCCD
       </h2>
 
       {/* Card Number */}
       <div>
         <label className="form-label">
-          Card Number (Số CCCD)
+          Số CCCD
         </label>
         <input
           type="text"
           value={data.cardNumber}
           onChange={handleChange('cardNumber')}
           disabled={!isEditing}
-          className="form-field"
-          placeholder="Enter card number"
+          className="form-field text-black"
+          placeholder="Nhập số CCCD"
         />
       </div>
 
       {/* Full Name */}
       <div>
         <label className="form-label">
-          Full Name (Họ và tên)
+          Họ và tên
         </label>
         <input
           type="text"
           value={data.fullName}
           onChange={handleChange('fullName')}
           disabled={!isEditing}
-          className="form-field"
-          placeholder="Enter full name"
+          className="form-field text-black"
+          placeholder="Nhập họ và tên"
         />
       </div>
 
       {/* Date of Birth */}
       <div>
         <label className="form-label">
-          Date of Birth (Ngày sinh)
+          Ngày sinh
         </label>
         <input
           type="text"
           value={data.dateOfBirth}
           onChange={handleChange('dateOfBirth')}
           disabled={!isEditing}
-          className="form-field"
+          className="form-field text-black"
           placeholder="DD/MM/YYYY"
         />
       </div>
@@ -68,14 +68,14 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {/* Sex */}
       <div>
         <label className="form-label">
-          Sex (Giới tính)
+          Giới tính
         </label>
         <input
           type="text"
           value={data.sex}
           onChange={handleChange('sex')}
           disabled={!isEditing}
-          className="form-field"
+          className="form-field text-black"
           placeholder="Nam/Nữ"
         />
       </div>
@@ -83,14 +83,14 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {/* Nationality */}
       <div>
         <label className="form-label">
-          Nationality (Quốc tịch)
+          Quốc tịch
         </label>
         <input
           type="text"
           value={data.nationality}
           onChange={handleChange('nationality')}
           disabled={!isEditing}
-          className="form-field"
+          className="form-field text-black"
           placeholder="Việt Nam"
         />
       </div>
@@ -98,14 +98,14 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {/* Place of Origin */}
       <div>
         <label className="form-label">
-          Place of Origin (Quê quán)
+          Quê quán
         </label>
         <textarea
           value={data.placeOfOrigin}
           onChange={handleChange('placeOfOrigin')}
           disabled={!isEditing}
-          className="form-field min-h-[60px] resize-none"
-          placeholder="Enter place of origin"
+          className="form-field min-h-[60px] resize-none text-black"
+          placeholder="Nhập quê quán"
           rows={2}
         />
       </div>
@@ -113,14 +113,14 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {/* Place of Residence */}
       <div>
         <label className="form-label">
-          Place of Residence (Nơi thường trú)
+          Nơi thường trú
         </label>
         <textarea
           value={data.placeOfResidence}
           onChange={handleChange('placeOfResidence')}
           disabled={!isEditing}
-          className="form-field min-h-[60px] resize-none"
-          placeholder="Enter place of residence"
+          className="form-field min-h-[60px] resize-none text-black"
+          placeholder="Nhập nơi thường trú"
           rows={2}
         />
       </div>
@@ -128,14 +128,14 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {/* Date of Expiry */}
       <div>
         <label className="form-label">
-          Date of Expiry (Có giá trị đến)
+          Có giá trị đến
         </label>
         <input
           type="text"
           value={data.dateOfExpiry}
           onChange={handleChange('dateOfExpiry')}
           disabled={!isEditing}
-          className="form-field"
+          className="form-field text-black"
           placeholder="DD/MM/YYYY"
         />
       </div>
@@ -144,15 +144,15 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {data.personalIdentification && (
         <div>
           <label className="form-label">
-            Personal Identification (Đặc điểm nhân dạng)
+            Đặc điểm nhân dạng
           </label>
           <input
             type="text"
             value={data.personalIdentification}
             onChange={handleChange('personalIdentification')}
             disabled={!isEditing}
-            className="form-field"
-            placeholder="Personal identification marks"
+            className="form-field text-black"
+            placeholder="Đặc điểm nhân dạng"
           />
         </div>
       )}
@@ -160,14 +160,14 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {data.dateOfIssue && (
         <div>
           <label className="form-label">
-            Date of Issue (Ngày cấp)
+            Ngày cấp
           </label>
           <input
             type="text"
             value={data.dateOfIssue}
             onChange={handleChange('dateOfIssue')}
             disabled={!isEditing}
-            className="form-field"
+            className="form-field text-black"
             placeholder="DD/MM/YYYY"
           />
         </div>
@@ -176,15 +176,15 @@ export default function CCCDForm({ data, onChange, isEditing = false }: CCCDForm
       {data.issuingAuthority && (
         <div>
           <label className="form-label">
-            Issuing Authority (Cơ quan cấp)
+            Cơ quan cấp
           </label>
           <input
             type="text"
             value={data.issuingAuthority}
             onChange={handleChange('issuingAuthority')}
             disabled={!isEditing}
-            className="form-field"
-            placeholder="Issuing authority"
+            className="form-field text-black"
+            placeholder="Cơ quan cấp"
           />
         </div>
       )}

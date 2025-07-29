@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Scanner Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+</head>
+<body>
+    <h1>QR Scanner Test</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <br><br>
+    <canvas id="canvas" style="display: none;"></canvas>
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            console.log('File selected:', file.name);
+            
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = function() {
+                console.log('Image loaded:', img.width, 'x', img.height);
+                
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                // Get image data
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                console.log('ImageData created:', imageData.width, 'x', imageData.height);
+                
+                // Test the exact same code that's causing issues
+                try {
+                    const width = imageData.width;
+                    const height = imageData.height;
+                    console.log('Width and height extracted:', width, height);
+                    
+                    // Try QR scanning
+                    const result = jsQR(imageData.data, width, height, {
+                        inversionAttempts: "attemptBoth",
+                    });
+                    
+                    if (result) {
+                        console.log('QR Code found:', result.data);
+                        document.getElementById('result').innerHTML = `
+                            <h3>QR Code Detected!</h3>
+                            <p><strong>Data:</strong> ${result.data}</p>
+                        `;
+                    } else {
+                        console.log('No QR code found');
+                        document.getElementById('result').innerHTML = `
+                            <h3>No QR Code Found</h3>
+                            <p>Try a different image or ensure the QR code is clearly visible.</p>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error during QR scanning:', error);
+                    document.getElementById('result').innerHTML = `
+                        <h3>Error</h3>
+                        <p style="color: red;">Error: ${error.message}</p>
+                    `;
+                }
+            };
+            
+            img.onerror = function() {
+                console.error('Failed to load image');
+                document.getElementById('result').innerHTML = `
+                    <h3>Error</h3>
+                    <p style="color: red;">Failed to load image</p>
+                `;
+            };
+            
+            img.src = URL.createObjectURL(file);
+        });
+    </script>
+</body>
+</html> 

@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'CCCD Scanner - Vietnamese ID Card Scanner',
-  description: 'Scan and extract information from Vietnamese Citizen Identity Cards (CCCD) using your mobile device',
+  title: 'Quét CCCD - Ứng dụng quét Căn cước công dân',
+  description: 'Quét và trích xuất thông tin từ Căn cước công dân Việt Nam (CCCD) bằng thiết bị di động của bạn',
 }
 
 export const viewport: Viewport = {

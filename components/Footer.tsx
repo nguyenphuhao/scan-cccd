@@ -9,10 +9,10 @@ export default function Footer() {
           {/* Main Footer Content */}
           <div className="mb-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              CCCD Scanner
+              Quét CCCD
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              Vietnamese Citizen Identity Card Scanner
+              Ứng dụng quét Căn cước công dân Việt Nam
             </p>
           </div>
 
@@ -25,7 +25,7 @@ export default function Footer() {
               className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <Github size={16} />
-              <span className="text-sm">Repository</span>
+              <span className="text-sm">Mã nguồn</span>
               <ExternalLink size={12} />
             </a>
           </div>
@@ -33,9 +33,9 @@ export default function Footer() {
           {/* Developer Information */}
           <div className="border-t border-gray-200 pt-4">
             <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-              <span>Developed with</span>
+              <span>Phát triển với</span>
               <Heart size={12} className="text-red-500" />
-              <span>by</span>
+              <span>bởi</span>
               <a
                 href="https://github.com/nguyenphuhao"
                 target="_blank"
@@ -49,19 +49,20 @@ export default function Footer() {
 
           {/* Tech Stack */}
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <p className="text-xs text-gray-400 mb-2">Built with:</p>
+            <p className="text-xs text-gray-400 mb-2">Xây dựng với:</p>
             <div className="flex items-center justify-center space-x-3 text-xs text-gray-500">
               <span className="bg-gray-100 px-2 py-1 rounded">Next.js</span>
               <span className="bg-gray-100 px-2 py-1 rounded">TypeScript</span>
               <span className="bg-gray-100 px-2 py-1 rounded">Tailwind CSS</span>
-              <span className="bg-gray-100 px-2 py-1 rounded">Tesseract.js</span>
+              <span className="bg-gray-100 px-2 py-1 rounded">OpenAI</span>
+              <span className="bg-gray-100 px-2 py-1 rounded">Gemini</span>
             </div>
           </div>
 
           {/* Copyright */}
           <div className="mt-4 pt-4 border-t border-gray-200">
             <p className="text-xs text-gray-400">
-              © 2024 Nguyen Phu Hao. Open source project.
+              © 2024 Nguyen Phu Hao. Dự án mã nguồn mở.
             </p>
           </div>
         </div>
