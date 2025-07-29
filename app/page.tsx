@@ -1,16 +1,23 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle, AlertCircle } from 'lucide-react';
+import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle, AlertCircle, Settings } from 'lucide-react';
 import CameraCapture from '@/components/CameraCapture';
 import CCCDForm from '@/components/CCCDForm';
+import OCRSelector from '@/components/OCRSelector';
+import Footer from '@/components/Footer';
 import { scanCCCD } from '@/utils/ocr';
+import { scanCCCDWithGoogleVision } from '@/utils/google-vision-ocr';
+import { scanCCCDWithVietOCR } from '@/utils/vietocr';
 import { CCCDData, ScanResult } from '@/types/cccd';
+import { OCREngine } from '@/types/ocr';
 
 export default function Home() {
   const [showCamera, setShowCamera] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedOCREngine, setSelectedOCREngine] = useState<OCREngine>('tesseract');
+  const [showOCRSettings, setShowOCRSettings] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [debugText, setDebugText] = useState<string>('');
@@ -52,6 +59,7 @@ export default function Home() {
     setDebugText('');
     try {
       console.log('Processing image file:', file.name, file.size);
+      console.log('Using OCR engine:', selectedOCREngine);
       
       // Override console.log to capture OCR text
       const originalLog = console.log;
@@ -61,13 +69,29 @@ export default function Home() {
         originalLog.apply(console, args);
       };
       
-      const result = await scanCCCD(file);
+      let result: ScanResult;
+      
+      // Use selected OCR engine
+      switch (selectedOCREngine) {
+        case 'google-vision':
+          result = await scanCCCDWithGoogleVision(file);
+          break;
+        case 'vietocr':
+          result = await scanCCCDWithVietOCR(file);
+          break;
+        case 'tesseract':
+        default:
+          result = await scanCCCD(file);
+          break;
+      }
       
       // Restore console.log
       console.log = originalLog;
       
       // Extract OCR text from logs
-      const ocrText = capturedLogs.find(log => log.includes('OCR completed, extracted text:'))?.split('OCR completed, extracted text:')[1] || '';
+      const ocrText = capturedLogs.find(log => log.includes('OCR completed, extracted text:'))?.split('OCR completed, extracted text:')[1] || 
+                     capturedLogs.find(log => log.includes('Google Vision OCR completed, extracted text:'))?.split('Google Vision OCR completed, extracted text:')[1] ||
+                     capturedLogs.find(log => log.includes('VietOCR completed, extracted text:'))?.split('VietOCR completed, extracted text:')[1] || '';
       setDebugText(ocrText);
       
       setScanResult(result);
@@ -120,20 +144,51 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-md mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold text-gray-900 text-center">
-            CCCD Scanner
-          </h1>
-          <p className="text-sm text-gray-600 text-center mt-1">
-            Vietnamese ID Card Scanner
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                CCCD Scanner
+              </h1>
+              <p className="text-sm text-gray-600">
+                Vietnamese ID Card Scanner
+              </p>
+            </div>
+            <button
+              onClick={() => setShowOCRSettings(!showOCRSettings)}
+              className="p-2 text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100"
+              title="OCR Settings"
+            >
+              <Settings size={20} />
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-md mx-auto p-4">
+      <div className="flex-1 max-w-md mx-auto p-4 w-full">
+        {/* OCR Settings */}
+        {showOCRSettings && (
+          <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <Settings size={20} className="mr-2" />
+              OCR Engine Settings
+            </h2>
+            <OCRSelector
+              selectedEngine={selectedOCREngine}
+              onEngineChange={setSelectedOCREngine}
+            />
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> Google Cloud Vision requires an API key. 
+                Add <code className="bg-blue-100 px-1 rounded">NEXT_PUBLIC_GOOGLE_VISION_API_KEY</code> to your environment variables.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Upload/Camera Section */}
         {!scanResult?.success && (
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
@@ -298,6 +353,9 @@ export default function Home() {
           />
         )}
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 } 
