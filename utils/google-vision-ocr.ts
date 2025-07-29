@@ -40,7 +40,7 @@ export async function scanCCCDWithGoogleVision(imageFile: File): Promise<ScanRes
     };
 
     // You'll need to set up Google Cloud Vision API and get an API key
-    const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_VISION_API_KEY;
+    const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_VISION_API_KEY || 'AIzaSyA795TD8s1npZP9nlO29yF-AWoeYbr49eA';
     const response = await fetch(
       `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`,
       {
