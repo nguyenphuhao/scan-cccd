@@ -33,8 +33,10 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
-    // Check NFC support on component mount
-    setIsNFCSupported(nfcReader.isNFCSupported());
+    // Check NFC support on component mount (client-side only)
+    if (typeof window !== 'undefined') {
+      setIsNFCSupported(nfcReader.isNFCSupported());
+    }
   }, []);
 
   const handleNFCScan = () => {

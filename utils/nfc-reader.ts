@@ -11,8 +11,8 @@ export class CCCDNFCReader {
   private reader: any = null;
 
   constructor() {
-    // Check if Web NFC API is supported
-    this.isSupported = 'NDEFReader' in window;
+    // Check if Web NFC API is supported (client-side only)
+    this.isSupported = typeof window !== 'undefined' && 'NDEFReader' in window;
   }
 
   isNFCSupported(): boolean {
@@ -44,6 +44,9 @@ export class CCCDNFCReader {
       }
 
       // Create NFC reader
+      if (typeof window === 'undefined') {
+        throw new Error('Window object not available');
+      }
       this.reader = new (window as any).NDEFReader();
 
       return new Promise((resolve) => {
