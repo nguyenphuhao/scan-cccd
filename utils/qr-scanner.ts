@@ -16,7 +16,6 @@ export async function scanQRCode(imageFile: File): Promise<ScanResult> {
   try {
     console.log('Starting QR code scan...');
     
-    // Create canvas to process image
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
     const img = new Image();
@@ -30,21 +29,16 @@ export async function scanQRCode(imageFile: File): Promise<ScanResult> {
         // Get image data for QR scanning
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         
-        // Scan for QR code using jsQR
-        const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "dontInvert",
-        });
+        // Try multiple scanning approaches
+        const qrResult = tryMultipleQRScans(imageData, canvas, ctx);
         
-        if (qrCode) {
-          console.log('QR Code detected:', qrCode.data);
-          
-          // Parse QR code data
-          const parsedData = parseQRCodeData(qrCode.data);
-          
+        if (qrResult) {
+          console.log('QR Code detected:', qrResult);
+          const parsedData = parseQRCodeData(qrResult);
           resolve({
             success: true,
             data: parsedData,
-            confidence: 0.99, // QR codes are very accurate
+            confidence: 0.99,
           });
         } else {
           console.log('No QR code found');
@@ -73,13 +67,231 @@ export async function scanQRCode(imageFile: File): Promise<ScanResult> {
   }
 }
 
+function tryMultipleQRScans(imageData: ImageData, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): string | null {
+  const width = imageData.width;
+  const height = imageData.height;
+  
+  console.log('Trying multiple QR scan approaches...');
+  
+  // Approach 1: Original image
+  let result = jsQR(imageData.data, width, height, {
+    inversionAttempts: "dontInvert",
+  });
+  if (result) {
+    console.log('QR found with original image');
+    return result.data;
+  }
+
+  // Approach 2: Inverted colors
+  result = jsQR(imageData.data, width, height, {
+    inversionAttempts: "onlyInvert",
+  });
+  if (result) {
+    console.log('QR found with inverted colors');
+    return result.data;
+  }
+
+  // Approach 3: Try both inversions
+  result = jsQR(imageData.data, width, height, {
+    inversionAttempts: "attemptBoth",
+  });
+  if (result) {
+    console.log('QR found with both inversions');
+    return result.data;
+  }
+
+  // Approach 4: Enhanced contrast
+  const contrastData = enhanceContrast(imageData);
+  result = jsQR(contrastData.data, contrastData.width, contrastData.height, {
+    inversionAttempts: "attemptBoth",
+  });
+  if (result) {
+    console.log('QR found with enhanced contrast');
+    return result.data;
+  }
+
+  // Approach 5: Grayscale conversion
+  const grayscaleData = convertToGrayscale(imageData);
+  result = jsQR(grayscaleData.data, grayscaleData.width, grayscaleData.height, {
+    inversionAttempts: "attemptBoth",
+  });
+  if (result) {
+    console.log('QR found with grayscale');
+    return result.data;
+  }
+
+  // Approach 6: Try different regions of the image
+  const regions = [
+    { x: Math.floor(width * 0.6), y: 0, w: Math.floor(width * 0.4), h: Math.floor(height * 0.4) }, // Top right (most likely)
+    { x: 0, y: 0, w: Math.floor(width * 0.4), h: Math.floor(height * 0.4) }, // Top left
+    { x: Math.floor(width * 0.6), y: Math.floor(height * 0.6), w: Math.floor(width * 0.4), h: Math.floor(height * 0.4) }, // Bottom right
+    { x: 0, y: Math.floor(height * 0.6), w: Math.floor(width * 0.4), h: Math.floor(height * 0.4) }, // Bottom left
+  ];
+
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
+    try {
+      const regionData = ctx.getImageData(region.x, region.y, region.w, region.h);
+      result = jsQR(regionData.data, regionData.width, regionData.height, {
+        inversionAttempts: "attemptBoth",
+      });
+      if (result) {
+        console.log(`QR found in region ${i}: ${region.x},${region.y}`);
+        return result.data;
+      }
+    } catch (error) {
+      console.log(`Error scanning region ${i}:`, error);
+    }
+  }
+
+  // Approach 7: Scale up the image for better detection
+  try {
+    const scaledCanvas = document.createElement('canvas');
+    const scaledCtx = scaledCanvas.getContext('2d')!;
+    const scale = 2;
+    scaledCanvas.width = width * scale;
+    scaledCanvas.height = height * scale;
+    
+    scaledCtx.imageSmoothingEnabled = false;
+    scaledCtx.drawImage(canvas, 0, 0, width * scale, height * scale);
+    
+    const scaledData = scaledCtx.getImageData(0, 0, scaledCanvas.width, scaledCanvas.height);
+    result = jsQR(scaledData.data, scaledData.width, scaledData.height, {
+      inversionAttempts: "attemptBoth",
+    });
+    if (result) {
+      console.log('QR found with scaled image');
+      return result.data;
+    }
+  } catch (error) {
+    console.log('Error with scaled approach:', error);
+  }
+
+  // Approach 8: Binary threshold
+  try {
+    const binaryData = applyBinaryThreshold(imageData);
+    result = jsQR(binaryData.data, binaryData.width, binaryData.height, {
+      inversionAttempts: "attemptBoth",
+    });
+    if (result) {
+      console.log('QR found with binary threshold');
+      return result.data;
+    }
+  } catch (error) {
+    console.log('Error with binary threshold approach:', error);
+  }
+
+  console.log('No QR code found with any approach');
+  return null;
+}
+
+function enhanceContrast(imageData: ImageData): ImageData {
+  const data = new Uint8ClampedArray(imageData.data);
+  const contrast = 50; // Increase contrast
+  const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = Math.min(255, Math.max(0, factor * (data[i] - 128) + 128));     // Red
+    data[i + 1] = Math.min(255, Math.max(0, factor * (data[i + 1] - 128) + 128)); // Green
+    data[i + 2] = Math.min(255, Math.max(0, factor * (data[i + 2] - 128) + 128)); // Blue
+  }
+  
+  return new ImageData(data, imageData.width, imageData.height);
+}
+
+function convertToGrayscale(imageData: ImageData): ImageData {
+  const data = new Uint8ClampedArray(imageData.data);
+  
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    data[i] = gray;     // Red
+    data[i + 1] = gray; // Green
+    data[i + 2] = gray; // Blue
+    // Alpha channel (data[i + 3]) remains unchanged
+  }
+  
+  return new ImageData(data, imageData.width, imageData.height);
+}
+
+function applyBinaryThreshold(imageData: ImageData): ImageData {
+  const data = new Uint8ClampedArray(imageData.data);
+  const threshold = 128;
+  
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    const binary = gray > threshold ? 255 : 0;
+    data[i] = binary;     // Red
+    data[i + 1] = binary; // Green
+    data[i + 2] = binary; // Blue
+  }
+  
+  return new ImageData(data, imageData.width, imageData.height);
+}
+
+// Enhanced QR detection function
+export async function enhancedQRScan(imageFile: File): Promise<ScanResult> {
+  try {
+    console.log('Starting enhanced QR code scan...');
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const img = new Image();
+    
+    return new Promise((resolve) => {
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        
+        console.log(`Image dimensions: ${img.width}x${img.height}`);
+        
+        // Get image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Try multiple scanning approaches with detailed logging
+        const qrText = tryMultipleQRScans(imageData, canvas, ctx);
+        
+        if (qrText) {
+          console.log('QR Code text found:', qrText);
+          const parsedData = parseQRCodeData(qrText);
+          console.log('Parsed CCCD data:', parsedData);
+          
+          resolve({
+            success: true,
+            data: parsedData,
+            confidence: 0.99,
+          });
+        } else {
+          console.log('Enhanced scan failed - no QR code detected');
+          resolve({
+            success: false,
+            error: 'No QR code detected after trying multiple scanning methods.',
+          });
+        }
+      };
+      
+      img.onerror = () => {
+        resolve({
+          success: false,
+          error: 'Failed to load image for QR scanning.',
+        });
+      };
+      
+      img.src = URL.createObjectURL(imageFile);
+    });
+  } catch (error) {
+    console.error('Enhanced QR Scanner Error:', error);
+    return {
+      success: false,
+      error: 'QR code scanning failed. Please try again.',
+    };
+  }
+}
+
 function parseQRCodeData(qrText: string): CCCDData {
   console.log('Parsing QR code text:', qrText);
   
   try {
-    // CCCD QR codes typically contain pipe-separated values or JSON
-    // Format example: "123456789012|NGUYEN VAN A|01/01/1990|Nam|Ha Noi, Viet Nam|01/01/2020|01/01/2030"
-    
     let parsedData: CCCDData = {
       cardNumber: '',
       fullName: '',
@@ -96,25 +308,26 @@ function parseQRCodeData(qrText: string): CCCDData {
       try {
         const jsonData = JSON.parse(qrText) as QRCodeData;
         parsedData = {
-          cardNumber: jsonData.cccd || jsonData.id || '',
-          fullName: jsonData.name || jsonData.fullName || '',
-          dateOfBirth: formatDate(jsonData.dob || jsonData.dateOfBirth || ''),
-          sex: jsonData.sex || jsonData.gender || '',
+          cardNumber: jsonData.cccd || jsonData.id || jsonData.cardNumber || '',
+          fullName: jsonData.name || jsonData.fullName || jsonData.ho_ten || '',
+          dateOfBirth: formatDate(jsonData.dob || jsonData.dateOfBirth || jsonData.ngay_sinh || ''),
+          sex: jsonData.sex || jsonData.gender || jsonData.gioi_tinh || '',
           nationality: 'Việt Nam',
-          placeOfOrigin: jsonData.address || '',
-          placeOfResidence: jsonData.address || '',
-          dateOfExpiry: formatDate(jsonData.expire_date || jsonData.expiry || ''),
-          dateOfIssue: formatDate(jsonData.issue_date || jsonData.issued || ''),
+          placeOfOrigin: jsonData.placeOfOrigin || jsonData.que_quan || '',
+          placeOfResidence: jsonData.placeOfResidence || jsonData.noi_thuong_tru || '',
+          dateOfExpiry: formatDate(jsonData.expiry || jsonData.dateOfExpiry || jsonData.ngay_het_han || ''),
+          dateOfIssue: formatDate(jsonData.issued || jsonData.dateOfIssue || jsonData.ngay_cap || ''),
         };
         return parsedData;
       } catch (e) {
-        console.log('Failed to parse as JSON, trying pipe-separated format');
+        console.log('Failed to parse as JSON, trying other formats');
       }
     }
     
     // Try parsing as pipe-separated values (most common for CCCD)
     if (qrText.includes('|')) {
       const parts = qrText.split('|');
+      console.log('Pipe-separated parts:', parts);
       if (parts.length >= 6) {
         parsedData = {
           cardNumber: parts[0]?.trim() || '',
@@ -123,9 +336,9 @@ function parseQRCodeData(qrText: string): CCCDData {
           sex: parts[3]?.trim() || '',
           nationality: 'Việt Nam',
           placeOfOrigin: parts[4]?.trim() || '',
-          placeOfResidence: parts[4]?.trim() || '',
+          placeOfResidence: parts[5]?.trim() || parts[4]?.trim() || '', // Often same as origin
           dateOfExpiry: formatDate(parts[6]?.trim() || ''),
-          dateOfIssue: formatDate(parts[5]?.trim() || ''),
+          dateOfIssue: formatDate(parts[7]?.trim() || ''),
         };
         return parsedData;
       }
@@ -134,6 +347,7 @@ function parseQRCodeData(qrText: string): CCCDData {
     // Try parsing as comma-separated values
     if (qrText.includes(',')) {
       const parts = qrText.split(',');
+      console.log('Comma-separated parts:', parts);
       if (parts.length >= 6) {
         parsedData = {
           cardNumber: parts[0]?.trim() || '',
@@ -142,14 +356,15 @@ function parseQRCodeData(qrText: string): CCCDData {
           sex: parts[3]?.trim() || '',
           nationality: 'Việt Nam',
           placeOfOrigin: parts[4]?.trim() || '',
-          placeOfResidence: parts[4]?.trim() || '',
-          dateOfExpiry: formatDate(parts[5]?.trim() || ''),
+          placeOfResidence: parts[5]?.trim() || '',
+          dateOfExpiry: formatDate(parts[6]?.trim() || ''),
         };
         return parsedData;
       }
     }
     
-    // If no structured format is detected, try to extract information with regex
+    // If no structured format, try to extract information with regex
+    console.log('No structured format found, trying regex extraction');
     return extractDataWithRegex(qrText);
     
   } catch (error) {
@@ -168,6 +383,8 @@ function parseQRCodeData(qrText: string): CCCDData {
 }
 
 function extractDataWithRegex(text: string): CCCDData {
+  console.log('Extracting data with regex from:', text);
+  
   const data: CCCDData = {
     cardNumber: '',
     fullName: '',
@@ -183,6 +400,7 @@ function extractDataWithRegex(text: string): CCCDData {
   const cardNumberMatch = text.match(/\b\d{12}\b/);
   if (cardNumberMatch) {
     data.cardNumber = cardNumberMatch[0];
+    console.log('Found card number:', data.cardNumber);
   }
   
   // Extract dates (DD/MM/YYYY format)
@@ -190,18 +408,24 @@ function extractDataWithRegex(text: string): CCCDData {
   if (dateMatches) {
     if (dateMatches.length >= 1) data.dateOfBirth = dateMatches[0];
     if (dateMatches.length >= 2) data.dateOfExpiry = dateMatches[1];
+    console.log('Found dates:', dateMatches);
   }
   
-  // Extract name (Vietnamese names)
+  // Extract Vietnamese names (uppercase)
   const nameMatch = text.match(/[A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂẾỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸ\s]{3,}/);
   if (nameMatch) {
-    data.fullName = nameMatch[0].trim();
+    const name = nameMatch[0].trim();
+    if (!name.includes('CỘNG HÒA') && !name.includes('VIỆT NAM') && !name.includes('CĂN CƯỚC')) {
+      data.fullName = name;
+      console.log('Found name:', data.fullName);
+    }
   }
   
   // Extract sex
   const sexMatch = text.match(/(Nam|Nữ|Male|Female)/i);
   if (sexMatch) {
     data.sex = sexMatch[1];
+    console.log('Found sex:', data.sex);
   }
   
   return data;
@@ -232,132 +456,4 @@ function formatDate(dateStr: string): string {
   }
   
   return dateStr;
-}
-
-// Enhanced QR detection function that tries multiple approaches
-export async function enhancedQRScan(imageFile: File): Promise<ScanResult> {
-  try {
-    console.log('Starting enhanced QR code scan...');
-    
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-    const img = new Image();
-    
-    return new Promise((resolve) => {
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        
-        // Try multiple scanning approaches
-        const approaches = [
-          // Original image
-          () => scanImageData(ctx.getImageData(0, 0, canvas.width, canvas.height)),
-          // Grayscale conversion
-          () => scanGrayscale(ctx, canvas.width, canvas.height),
-          // Contrast enhancement
-          () => scanWithContrast(ctx, canvas.width, canvas.height),
-          // Different orientations
-          () => scanRotated(ctx, canvas.width, canvas.height, 90),
-          () => scanRotated(ctx, canvas.width, canvas.height, 180),
-          () => scanRotated(ctx, canvas.width, canvas.height, 270),
-        ];
-        
-        for (const approach of approaches) {
-          try {
-            const result = approach();
-            if (result) {
-              console.log('QR Code detected with enhanced scan:', result.data);
-              const parsedData = parseQRCodeData(result.data);
-              resolve({
-                success: true,
-                data: parsedData,
-                confidence: 0.99,
-              });
-              return;
-            }
-          } catch (e) {
-            console.log('Scanning approach failed:', e);
-          }
-        }
-        
-        // No QR code found with any approach
-        resolve({
-          success: false,
-          error: 'No QR code detected after trying multiple scanning methods.',
-        });
-      };
-      
-      img.onerror = () => {
-        resolve({
-          success: false,
-          error: 'Failed to load image for QR scanning.',
-        });
-      };
-      
-      img.src = URL.createObjectURL(imageFile);
-    });
-  } catch (error) {
-    console.error('Enhanced QR Scanner Error:', error);
-    return {
-      success: false,
-      error: 'QR code scanning failed. Please try again.',
-    };
-  }
-}
-
-function scanImageData(imageData: ImageData) {
-  return jsQR(imageData.data, imageData.width, imageData.height, {
-    inversionAttempts: "dontInvert",
-  });
-}
-
-function scanGrayscale(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-  
-  // Convert to grayscale
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    data[i] = gray;
-    data[i + 1] = gray;
-    data[i + 2] = gray;
-  }
-  
-  return jsQR(data, width, height);
-}
-
-function scanWithContrast(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-  
-  // Enhance contrast
-  const contrast = 1.5;
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = Math.min(255, Math.max(0, (data[i] - 128) * contrast + 128));
-    data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * contrast + 128));
-    data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * contrast + 128));
-  }
-  
-  return jsQR(data, width, height);
-}
-
-function scanRotated(ctx: CanvasRenderingContext2D, width: number, height: number, degrees: number) {
-  const tempCanvas = document.createElement('canvas');
-  const tempCtx = tempCanvas.getContext('2d')!;
-  
-  if (degrees === 90 || degrees === 270) {
-    tempCanvas.width = height;
-    tempCanvas.height = width;
-  } else {
-    tempCanvas.width = width;
-    tempCanvas.height = height;
-  }
-  
-  tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-  tempCtx.rotate((degrees * Math.PI) / 180);
-  tempCtx.drawImage(ctx.canvas, -width / 2, -height / 2, width, height);
-  
-  const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-  return jsQR(imageData.data, imageData.width, imageData.height);
 } 
