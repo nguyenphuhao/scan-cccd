@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle } from 'lucide-react';
+import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle, AlertCircle } from 'lucide-react';
 import CameraCapture from '@/components/CameraCapture';
 import CCCDForm from '@/components/CCCDForm';
 import { scanCCCD } from '@/utils/ocr';
@@ -13,6 +13,7 @@ export default function Home() {
   const [isEditing, setIsEditing] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [debugText, setDebugText] = useState<string>('');
   const [formData, setFormData] = useState<CCCDData>({
     cardNumber: '',
     fullName: '',
@@ -48,13 +49,34 @@ export default function Home() {
 
   const processImage = async (file: File) => {
     setIsScanning(true);
+    setDebugText('');
     try {
       console.log('Processing image file:', file.name, file.size);
+      
+      // Override console.log to capture OCR text
+      const originalLog = console.log;
+      const capturedLogs: string[] = [];
+      console.log = (...args) => {
+        capturedLogs.push(args.join(' '));
+        originalLog.apply(console, args);
+      };
+      
       const result = await scanCCCD(file);
+      
+      // Restore console.log
+      console.log = originalLog;
+      
+      // Extract OCR text from logs
+      const ocrText = capturedLogs.find(log => log.includes('OCR completed, extracted text:'))?.split('OCR completed, extracted text:')[1] || '';
+      setDebugText(ocrText);
+      
       setScanResult(result);
       
       if (result.success && result.data) {
         setFormData(result.data);
+        console.log('Form data updated:', result.data);
+      } else {
+        console.log('Scan failed:', result.error);
       }
     } catch (error) {
       console.error('Error processing image:', error);
@@ -94,6 +116,7 @@ export default function Home() {
     setScanResult(null);
     setIsEditing(false);
     setCapturedImage(null);
+    setDebugText('');
   };
 
   return (
@@ -183,6 +206,19 @@ export default function Home() {
           </div>
         )}
 
+        {/* Debug Information */}
+        {debugText && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <h3 className="font-medium text-yellow-900 mb-2 flex items-center">
+              <AlertCircle size={16} className="mr-2" />
+              Debug: OCR Extracted Text
+            </h3>
+            <div className="text-xs text-yellow-800 bg-yellow-100 p-2 rounded max-h-32 overflow-y-auto">
+              {debugText || 'No text extracted'}
+            </div>
+          </div>
+        )}
+
         {/* Loading State */}
         {isScanning && !capturedImage && (
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
@@ -196,6 +232,10 @@ export default function Home() {
         {/* Error Message */}
         {scanResult && !scanResult.success && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center space-x-2 mb-2">
+              <AlertCircle size={16} className="text-red-600" />
+              <p className="text-red-800 text-sm font-medium">Scan Failed</p>
+            </div>
             <p className="text-red-800 text-sm">{scanResult.error}</p>
             <button
               onClick={resetForm}

@@ -30,10 +30,21 @@ export async function scanCCCD(imageFile: File): Promise<ScanResult> {
     const parsedData = parseCCCDText(text);
     console.log('Parsed CCCD data:', parsedData);
     
+    // Check if we found any data
+    const hasData = Object.values(parsedData).some(value => value && value.toString().length > 0);
+    
+    if (!hasData) {
+      console.warn('No CCCD data found in extracted text');
+      return {
+        success: false,
+        error: 'Could not extract CCCD information. Please ensure the card is clearly visible and try again.',
+      };
+    }
+    
     return {
       success: true,
       data: parsedData,
-      confidence: 0.8, // Placeholder confidence score
+      confidence: 0.8,
     };
   } catch (error) {
     console.error('OCR Error:', error);
@@ -56,6 +67,7 @@ function fileToBase64(file: File): Promise<string> {
 function parseCCCDText(text: string): CCCDData {
   console.log('Parsing text:', text);
   const lines = text.split('\n').filter(line => line.trim());
+  console.log('Filtered lines:', lines);
   
   // Initialize data object
   const data: CCCDData = {
@@ -69,7 +81,7 @@ function parseCCCDText(text: string): CCCDData {
     dateOfExpiry: '',
   };
 
-  // Extract card number (usually 12 digits)
+  // Extract card number (12 digits)
   const cardNumberMatch = text.match(/\b\d{12}\b/);
   if (cardNumberMatch) {
     data.cardNumber = cardNumberMatch[0];
@@ -82,48 +94,90 @@ function parseCCCDText(text: string): CCCDData {
     data.dateOfBirth = dateMatches[0];
     data.dateOfExpiry = dateMatches[1];
     console.log('Found dates - Birth:', data.dateOfBirth, 'Expiry:', data.dateOfExpiry);
+  } else if (dateMatches && dateMatches.length === 1) {
+    // If only one date found, assume it's birth date
+    data.dateOfBirth = dateMatches[0];
+    console.log('Found single date (birth):', data.dateOfBirth);
   }
 
-  // Extract name (look for Vietnamese name patterns)
+  // Extract name with multiple patterns
   const namePatterns = [
-    /(?:Họ và tên|Full name)[:\s]*([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂẾỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸ\s]+)/i,
-    /([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂẾỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸ\s]{3,})/i
+    /(?:Họ và tên|Full name|Họ tên)[:\s]*([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂẾỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸ\s]{3,})/i,
+    /([A-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂẾỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸ\s]{3,})/i,
+    /([A-Z][A-Z\s]+)/g
   ];
   
   for (const pattern of namePatterns) {
     const nameMatch = text.match(pattern);
     if (nameMatch && nameMatch[1] && nameMatch[1].trim().length > 2) {
-      data.fullName = nameMatch[1].trim();
-      console.log('Found name:', data.fullName);
-      break;
+      const name = nameMatch[1].trim();
+      // Filter out common non-name words
+      if (!name.includes('CỘNG HÒA') && !name.includes('VIỆT NAM') && !name.includes('CĂN CƯỚC')) {
+        data.fullName = name;
+        console.log('Found name:', data.fullName);
+        break;
+      }
     }
   }
 
   // Extract sex
-  const sexMatch = text.match(/(?:Giới tính|Sex)[:\s]*(Nam|Nữ|Male|Female)/i);
-  if (sexMatch) {
-    data.sex = sexMatch[1];
-    console.log('Found sex:', data.sex);
+  const sexPatterns = [
+    /(?:Giới tính|Sex)[:\s]*(Nam|Nữ|Male|Female)/i,
+    /(Nam|Nữ)/i
+  ];
+  
+  for (const pattern of sexPatterns) {
+    const sexMatch = text.match(pattern);
+    if (sexMatch) {
+      data.sex = sexMatch[1];
+      console.log('Found sex:', data.sex);
+      break;
+    }
   }
 
   // Extract nationality
-  const nationalityMatch = text.match(/(?:Quốc tịch|Nationality)[:\s]*(Việt Nam|Vietnam)/i);
-  if (nationalityMatch) {
-    data.nationality = nationalityMatch[1];
-    console.log('Found nationality:', data.nationality);
+  const nationalityPatterns = [
+    /(?:Quốc tịch|Nationality)[:\s]*(Việt Nam|Vietnam)/i,
+    /(Việt Nam|Vietnam)/i
+  ];
+  
+  for (const pattern of nationalityPatterns) {
+    const nationalityMatch = text.match(pattern);
+    if (nationalityMatch) {
+      data.nationality = nationalityMatch[1];
+      console.log('Found nationality:', data.nationality);
+      break;
+    }
   }
 
-  // Extract place of origin and residence
-  const originMatch = text.match(/(?:Quê quán|Place of origin)[:\s]*([^,\n]+)/i);
-  if (originMatch) {
-    data.placeOfOrigin = originMatch[1].trim();
-    console.log('Found place of origin:', data.placeOfOrigin);
+  // Extract place of origin
+  const originPatterns = [
+    /(?:Quê quán|Place of origin)[:\s]*([^,\n]+)/i,
+    /(?:Quê quán)[:\s]*([^,\n]+)/i
+  ];
+  
+  for (const pattern of originPatterns) {
+    const originMatch = text.match(pattern);
+    if (originMatch) {
+      data.placeOfOrigin = originMatch[1].trim();
+      console.log('Found place of origin:', data.placeOfOrigin);
+      break;
+    }
   }
 
-  const residenceMatch = text.match(/(?:Nơi thường trú|Place of residence)[:\s]*([^,\n]+)/i);
-  if (residenceMatch) {
-    data.placeOfResidence = residenceMatch[1].trim();
-    console.log('Found place of residence:', data.placeOfResidence);
+  // Extract place of residence
+  const residencePatterns = [
+    /(?:Nơi thường trú|Place of residence)[:\s]*([^,\n]+)/i,
+    /(?:Nơi thường trú)[:\s]*([^,\n]+)/i
+  ];
+  
+  for (const pattern of residencePatterns) {
+    const residenceMatch = text.match(pattern);
+    if (residenceMatch) {
+      data.placeOfResidence = residenceMatch[1].trim();
+      console.log('Found place of residence:', data.placeOfResidence);
+      break;
+    }
   }
 
   // Additional fields for back side
@@ -145,5 +199,7 @@ function parseCCCDText(text: string): CCCDData {
     console.log('Found issuing authority:', data.issuingAuthority);
   }
 
+  // Log final result
+  console.log('Final parsed data:', data);
   return data;
 } 
