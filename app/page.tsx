@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Edit, Save, RotateCcw } from 'lucide-react';
+import { Camera, Upload, Edit, Save, RotateCcw, CheckCircle } from 'lucide-react';
 import CameraCapture from '@/components/CameraCapture';
 import CCCDForm from '@/components/CCCDForm';
 import { scanCCCD } from '@/utils/ocr';
@@ -12,6 +12,7 @@ export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [formData, setFormData] = useState<CCCDData>({
     cardNumber: '',
     fullName: '',
@@ -26,12 +27,21 @@ export default function Home() {
 
   const handleImageCapture = async (file: File) => {
     setShowCamera(false);
+    
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setCapturedImage(previewUrl);
+    
     await processImage(file);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setCapturedImage(previewUrl);
+      
       await processImage(file);
     }
   };
@@ -39,6 +49,7 @@ export default function Home() {
   const processImage = async (file: File) => {
     setIsScanning(true);
     try {
+      console.log('Processing image file:', file.name, file.size);
       const result = await scanCCCD(file);
       setScanResult(result);
       
@@ -82,6 +93,7 @@ export default function Home() {
     });
     setScanResult(null);
     setIsEditing(false);
+    setCapturedImage(null);
   };
 
   return (
@@ -147,8 +159,32 @@ export default function Home() {
           </div>
         )}
 
+        {/* Captured Image Preview */}
+        {capturedImage && (
+          <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">
+              Captured Image
+            </h3>
+            <div className="relative">
+              <img 
+                src={capturedImage} 
+                alt="Captured CCCD" 
+                className="w-full h-48 object-cover rounded-lg border"
+              />
+              {isScanning && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
+                  <div className="text-white text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                    <p>Scanning CCCD...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Loading State */}
-        {isScanning && (
+        {isScanning && !capturedImage && (
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
             <div className="flex items-center justify-center space-x-3">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
@@ -175,9 +211,12 @@ export default function Home() {
           <div className="bg-white rounded-lg shadow-sm border">
             {/* Header with actions */}
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-800">
-                CCCD Information
-              </h2>
+              <div className="flex items-center space-x-2">
+                <CheckCircle size={20} className="text-green-600" />
+                <h2 className="text-lg font-semibold text-gray-800">
+                  CCCD Information
+                </h2>
+              </div>
               <div className="flex space-x-2">
                 <button
                   onClick={() => setIsEditing(!isEditing)}
